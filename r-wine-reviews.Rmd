@@ -1,0 +1,91 @@
+---
+title: "r-wine-reviews"
+author: "Joy Kuo"
+date: "8/14/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(igraph)
+library(ggraph)
+```
+
+## Overview
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+wine150 <- read.csv("winemag-data_first150k.csv")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+list <- strsplit(as.character(wine150$description), " ")
+byword <- data.frame(X = rep(wine150$X, sapply(list, length)), words = unlist(list))
+byword$words <- as.character(byword$words)
+
+byword <- filter(byword,!grepl("\\,|\\.",words))
+
+rm_list <- c("^the$","^and$","^is$","^was$","^are$","^were$","^it$","^to$","^by$","^has$","^have$","^of$","^do$","^does$","^in$","^on$","^a$","^an$","^but$","^from$","^his$","^her$","^this$","^with$","^that$","^for$","^made$","^along$","^while$","^still$","^through$","^as$","^which$","^come$","^note$","^even$","^opens$","^it's$","^got$","^its$","^Drink$","^enjoy$","^at$","^seems$","^all$","^wine$","^hints$","^among$","^you'll$","^find$","^offer$","^include$","^years$","^over$","^start$","^finish$","^or$","^if$","^into$","^too$","^not$","^here$","^these$", "^flavors$", "^aromas$", "^palate$","^notes$","^will$","^be$","^bit$","^good$","^some$","^very$","^more$","^bit$","^more$","^little$","^shows$","^so$","^you$","^than$")
+
+byword_f <- filter(byword, !grepl(paste(rm_list, collapse = "|"),words,ignore.case = TRUE))
+byword_f$factorwords <- as.factor(byword_f$words)
+
+counts <- 
+byword_f %>%
+  group_by(factorwords) %>%
+  summarise(count = length(factorwords)) %>%
+  arrange(desc(count))
+
+```
+
+
+```{r}
+variety_10 <- wine150 %>%
+  group_by(variety) %>%
+  summarise(count = length(variety)) %>%
+  arrange(desc(count)) %>%
+  top_n(10,count)
+
+variety_10 <- wine150 %>%
+  filter(variety %in% variety_10$variety) %>%
+  select(X,variety) %>%
+  right_join(y = variety_10, by = "variety")
+
+variety_10 <- left_join(x = variety_10, y = byword_f, by = "X")
+variety_words <- data_frame()
+
+dist_variety <- unique(variety_10$variety)
+
+for(i in 1:length(dist_variety)){
+  variety_temp <- variety_10 %>%
+    filter(variety == dist_variety[i]) %>%
+    group_by(factorwords) %>%
+    summarise(count_words = length(factorwords)) %>%
+    arrange(desc(count_words)) %>%
+    top_n(30, count_words)
+  
+  variety_temp$variety <- rep(dist_variety[i], times = 30)
+  
+  variety_words <- bind_rows(variety_words, variety_temp)
+}
+  variety_words
+  
+  word_graph <- variety_words %>%
+    select(variety,factorwords) %>%
+    graph.data.frame(directed = TRUE)
+  
+  ggraph(word_graph, layout = 'fr') + 
+    geom_edge_fan(alpha = 0.5) +
+    geom_node_text(aes(label = name)) 
+    
+
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
